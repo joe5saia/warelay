@@ -1,15 +1,185 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { WarelayConfig } from "../config/config.js";
 import { resetLogger, setLoggerOverride } from "../logging.js";
-import { monitorWebProvider } from "./auto-reply.js";
+import {
+  HEARTBEAT_TOKEN,
+  monitorWebProvider,
+  resolveReplyHeartbeatMinutes,
+  runWebHeartbeatOnce,
+  stripHeartbeatToken,
+} from "./auto-reply.js";
+import type { sendMessageWeb } from "./outbound.js";
 import {
   resetBaileysMocks,
   resetLoadConfigMock,
   setLoadConfigMock,
 } from "./test-helpers.js";
+import { resolveStorePath } from "../config/sessions.js";
+
+describe("heartbeat helpers", () => {
+  it("strips heartbeat token and skips when only token", () => {
+    expect(stripHeartbeatToken(undefined)).toEqual({
+      shouldSkip: true,
+      text: "",
+    });
+    expect(stripHeartbeatToken("  ")).toEqual({
+      shouldSkip: true,
+      text: "",
+    });
+    expect(stripHeartbeatToken(HEARTBEAT_TOKEN)).toEqual({
+      shouldSkip: true,
+      text: "",
+    });
+  });
+
+  it("keeps content and removes token when mixed", () => {
+    expect(stripHeartbeatToken(`ALERT ${HEARTBEAT_TOKEN}`)).toEqual({
+      shouldSkip: false,
+      text: "ALERT",
+    });
+    expect(stripHeartbeatToken(`hello`)).toEqual({
+      shouldSkip: false,
+      text: "hello",
+    });
+  });
+
+  it("resolves heartbeat minutes with default and overrides", () => {
+    const cfgBase: WarelayConfig = {
+      inbound: {
+        reply: { mode: "command" as const },
+      },
+    };
+    expect(resolveReplyHeartbeatMinutes(cfgBase)).toBe(30);
+    expect(
+      resolveReplyHeartbeatMinutes({
+        inbound: { reply: { mode: "command", heartbeatMinutes: 5 } },
+      }),
+    ).toBe(5);
+    expect(
+      resolveReplyHeartbeatMinutes({
+        inbound: { reply: { mode: "command", heartbeatMinutes: 0 } },
+      }),
+    ).toBeNull();
+    expect(resolveReplyHeartbeatMinutes(cfgBase, 7)).toBe(7);
+    expect(
+      resolveReplyHeartbeatMinutes({
+        inbound: { reply: { mode: "text" } },
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("runWebHeartbeatOnce", () => {
+  it("skips when heartbeat token returned", async () => {
+    const sender: typeof sendMessageWeb = vi.fn();
+    const resolver = vi.fn(async () => ({ text: HEARTBEAT_TOKEN }));
+    setLoadConfigMock({
+      inbound: { allowFrom: ["+1555"], reply: { mode: "command" } },
+    });
+    await runWebHeartbeatOnce({
+      to: "+1555",
+      verbose: false,
+      sender,
+      replyResolver: resolver,
+    });
+    expect(resolver).toHaveBeenCalled();
+    expect(sender).not.toHaveBeenCalled();
+  });
+
+  it("sends when alert text present", async () => {
+    const sender: typeof sendMessageWeb = vi
+      .fn()
+      .mockResolvedValue({ messageId: "m1", toJid: "jid" });
+    const resolver = vi.fn(async () => ({ text: "ALERT" }));
+    setLoadConfigMock({
+      inbound: { allowFrom: ["+1555"], reply: { mode: "command" } },
+    });
+    await runWebHeartbeatOnce({
+      to: "+1555",
+      verbose: false,
+      sender,
+      replyResolver: resolver,
+    });
+    expect(sender).toHaveBeenCalledWith("+1555", "ALERT", { verbose: false });
+  });
+
+  it("falls back to most recent session when no to is provided", async () => {
+    const sender: typeof sendMessageWeb = vi
+      .fn()
+      .mockResolvedValue({ messageId: "m1", toJid: "jid" });
+    const resolver = vi.fn(async () => ({ text: "ALERT" }));
+    // Seed session store
+    const now = Date.now();
+    const store = {
+      "+1222": { sessionId: "s1", updatedAt: now - 1000 },
+      "+1333": { sessionId: "s2", updatedAt: now },
+    };
+    const storePath = resolveStorePath();
+    await fs.mkdir(resolveStorePath().replace("sessions.json", ""), {
+      recursive: true,
+    });
+    await fs.writeFile(storePath, JSON.stringify(store));
+    setLoadConfigMock({
+      inbound: {
+        allowFrom: ["+1999"],
+        reply: { mode: "command", session: {} },
+      },
+    });
+    await runWebHeartbeatOnce({
+      to: "+1999",
+      verbose: false,
+      sender,
+      replyResolver: resolver,
+    });
+    expect(sender).toHaveBeenCalledWith("+1333", "ALERT", { verbose: false });
+  });
+
+  it("does not refresh updatedAt when heartbeat is skipped", async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "warelay-heartbeat-"),
+    );
+    const storePath = path.join(tmpDir, "sessions.json");
+    const now = Date.now();
+    const originalUpdated = now - 30 * 60 * 1000;
+    const store = {
+      "+1555": { sessionId: "sess1", updatedAt: originalUpdated },
+    };
+    await fs.writeFile(storePath, JSON.stringify(store));
+
+    const sender: typeof sendMessageWeb = vi.fn();
+    const resolver = vi.fn(async () => ({ text: HEARTBEAT_TOKEN }));
+    setLoadConfigMock({
+      inbound: {
+        allowFrom: ["+1555"],
+        reply: {
+          mode: "command",
+          session: {
+            store: storePath,
+            idleMinutes: 60,
+            heartbeatIdleMinutes: 10,
+          },
+        },
+      },
+    });
+
+    await runWebHeartbeatOnce({
+      to: "+1555",
+      verbose: false,
+      sender,
+      replyResolver: resolver,
+    });
+
+    const after = JSON.parse(await fs.readFile(storePath, "utf-8"));
+    expect(after["+1555"].updatedAt).toBe(originalUpdated);
+    expect(sender).not.toHaveBeenCalled();
+  });
+});
 
 describe("web auto-reply", () => {
   beforeEach(() => {

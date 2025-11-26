@@ -13,6 +13,7 @@ export type SessionConfig = {
   scope?: SessionScope;
   resetTriggers?: string[];
   idleMinutes?: number;
+  heartbeatIdleMinutes?: number;
   store?: string;
   sessionArgNew?: string[];
   sessionArgResume?: string[];
@@ -20,6 +21,7 @@ export type SessionConfig = {
   sendSystemOnce?: boolean;
   sessionIntro?: string;
   typingIntervalSeconds?: number;
+  heartbeatMinutes?: number;
 };
 
 export type LoggingConfig = {
@@ -88,6 +90,7 @@ const ReplySchema = z
           .optional(),
         resetTriggers: z.array(z.string()).optional(),
         idleMinutes: z.number().int().positive().optional(),
+        heartbeatIdleMinutes: z.number().int().positive().optional(),
         store: z.string().optional(),
         sessionArgNew: z.array(z.string()).optional(),
         sessionArgResume: z.array(z.string()).optional(),
@@ -97,6 +100,7 @@ const ReplySchema = z
         typingIntervalSeconds: z.number().int().positive().optional(),
       })
       .optional(),
+    heartbeatMinutes: z.number().int().nonnegative().optional(),
     claudeOutputFormat: z
       .union([
         z.literal("text"),
