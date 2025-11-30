@@ -125,6 +125,16 @@ Best practice: use a dedicated WhatsApp account (separate SIM/eSIM or business a
    ```
 4. Run `warelay relay --provider discord --verbose` to listen, or send with `warelay send --provider discord --to <channel-id> --message "Hi"` (DMs also work).
 
+#### Discord per-profile setup (multiple agents)
+Use separate bot tokens per profile to avoid cross-profile reuse errors.
+1. Create a new bot in the Discord Developer Portal (or regenerate a token on an existing bot dedicated to this profile).
+2. In **Bot → Privileged Gateway Intents**, enable **MESSAGE CONTENT INTENT**.
+3. Invite the bot to your server with Send Messages + Read Message History (and Threads if needed).
+4. Pick a profile name (e.g., `joe`) and create a profile config: `~/.warelay/warelay.joe.json` (or pass `--config`). Include optional Discord settings like `assistantLabel`/allowlists.
+5. Add the new bot token to your env for that shell/session: `export DISCORD_BOT_TOKEN="<token>"` (or use a profile-specific env loader).
+6. Run with the profile: `warelay relay --provider discord --verbose --profile joe`.
+7. If you previously used the same token in another profile, clear the old registry entry at `~/.warelay/state/discord-tokens.json` **only if you intend to stop using that profile with this token**; otherwise, keep tokens unique per profile to avoid collisions.
+
 ### Same-phone mode (self-messaging)
 warelay supports running on the same phone number you message from—you chat with yourself and an AI assistant replies in the same bubble. This requires:
 - Adding your own number to `allowFrom` in `warelay.json`
