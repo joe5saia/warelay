@@ -15,6 +15,8 @@ import { logVerbose } from "../globals.js";
 import { getChildLogger } from "../logging.js";
 import type { DiscordRuntimeConfig } from "./types.js";
 
+const DISCORD_TOKEN_FILENAME = "discord-token";
+
 export const DEFAULT_CLIENT_OPTIONS: ClientOptions = {
   intents: [
     GatewayIntentBits.Guilds,
@@ -24,6 +26,29 @@ export const DEFAULT_CLIENT_OPTIONS: ClientOptions = {
   ],
   partials: [Partials.Channel],
 };
+
+function getDiscordTokenPath() {
+  const { credentialsDir } = resolveProfilePaths();
+  return path.join(credentialsDir, DISCORD_TOKEN_FILENAME);
+}
+
+function readDiscordTokenFromProfile(): string | undefined {
+  const tokenPath = getDiscordTokenPath();
+  try {
+    const raw = fs.readFileSync(tokenPath, "utf-8").trim();
+    return raw.length > 0 ? raw : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function persistDiscordTokenToProfile(botToken: string) {
+  const tokenPath = getDiscordTokenPath();
+  fs.mkdirSync(path.dirname(tokenPath), { recursive: true });
+  const existing = readDiscordTokenFromProfile();
+  if (existing === botToken) return;
+  fs.writeFileSync(tokenPath, botToken, { encoding: "utf-8", mode: 0o600 });
+}
 
 function ensureDiscordTokenNotReused(botToken: string) {
   const hash = crypto.createHash("sha256").update(botToken).digest("hex");
@@ -69,12 +94,16 @@ export function resolveDiscordConfig(
 ): DiscordRuntimeConfig {
   const config = cfg ?? loadConfig();
   const discordCfg = config.discord ?? {};
-  const botToken = process.env.DISCORD_BOT_TOKEN ?? discordCfg.botToken;
+  const storedToken = readDiscordTokenFromProfile();
+  const botToken =
+    process.env.DISCORD_BOT_TOKEN ?? discordCfg.botToken ?? storedToken;
   if (!botToken) {
     throw new Error(
       "DISCORD_BOT_TOKEN missing. Set it in your environment or warelay config before using provider=discord.",
     );
   }
+  // Cache token per profile to simplify multi-bot setups.
+  persistDiscordTokenToProfile(botToken);
   return {
     botToken,
     allowedUsers: discordCfg.allowedUsers ?? [],

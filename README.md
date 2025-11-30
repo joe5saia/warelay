@@ -131,7 +131,7 @@ Use separate bot tokens per profile to avoid cross-profile reuse errors.
 2. In **Bot → Privileged Gateway Intents**, enable **MESSAGE CONTENT INTENT**.
 3. Invite the bot to your server with Send Messages + Read Message History (and Threads if needed).
 4. Pick a profile name (e.g., `joe`) and create a profile config: `~/.warelay/warelay.joe.json` (or pass `--config`). Include optional Discord settings like `assistantLabel`/allowlists.
-5. Add the new bot token to your env for that shell/session: `export DISCORD_BOT_TOKEN="<token>"` (or use a profile-specific env loader).
+5. Add the new bot token to your env for that shell/session: `export DISCORD_BOT_TOKEN="<token>"` (or use a profile-specific env loader). The token is cached to `~/.warelay/credentials/<profile>/discord-token` for reuse; update that file when rotating tokens.
 6. Run with the profile: `warelay relay --provider discord --verbose --profile joe`.
 7. If you previously used the same token in another profile, clear the old registry entry at `~/.warelay/state/discord-tokens.json` **only if you intend to stop using that profile with this token**; otherwise, keep tokens unique per profile to avoid collisions.
 
