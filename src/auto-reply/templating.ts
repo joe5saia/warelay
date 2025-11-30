@@ -20,6 +20,8 @@ export type MsgContext = {
   messageId?: string;
   isMentioned?: boolean;
   rawMentions?: string[];
+  sentAtIso?: string;
+  promptPrefix?: string;
 };
 
 export type TemplateContext = MsgContext & {

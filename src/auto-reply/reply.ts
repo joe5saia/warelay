@@ -189,9 +189,13 @@ export async function getReplyFromConfig(
   const bodyPrefix = reply?.bodyPrefix
     ? applyTemplate(reply.bodyPrefix, sessionCtx)
     : "";
+  const promptPrefix = sessionCtx.promptPrefix ?? "";
   const baseBody = sessionCtx.BodyStripped ?? sessionCtx.Body ?? "";
   const prefixedBodyBase = (() => {
     let body = baseBody;
+    if (promptPrefix) {
+      body = `${promptPrefix}${body}`;
+    }
     if (!sendSystemOnce || isFirstTurnInSession) {
       body = bodyPrefix ? `${bodyPrefix}${body}` : body;
     }

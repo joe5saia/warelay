@@ -120,6 +120,9 @@ export function toMsgContext(
   config: DiscordRuntimeConfig,
 ): MsgContext {
   const { profileLabel } = resolveProfilePaths();
+  const sentAtIso = msg.timestamp.toISOString();
+  const senderLabel = msg.senderName ?? msg.userTag ?? msg.userId;
+  const promptPrefix = `[discord] ${senderLabel} at ${sentAtIso} wrote:\n`;
   return {
     Body: msg.content,
     From: msg.userId,
@@ -138,6 +141,8 @@ export function toMsgContext(
     messageId: msg.messageId,
     isMentioned: msg.isMention,
     rawMentions: msg.mentionUserIds,
+    sentAtIso,
+    promptPrefix,
   };
 }
 
