@@ -439,24 +439,6 @@ Examples:
         }
       }
 
-      if (providerPref === "discord") {
-        ensureDiscordEnv();
-        try {
-          await monitorDiscordProvider(
-            { verbose: Boolean(opts.verbose) },
-            defaultRuntime,
-          );
-          return;
-        } catch (err) {
-          defaultRuntime.error(
-            danger(
-              `Discord relay failed: ${String(err)}. Check DISCORD_BOT_TOKEN and intents.`,
-            ),
-          );
-          defaultRuntime.exit(1);
-        }
-      }
-
       const provider = await pickProvider(providerPref as Provider | "auto");
 
       if (provider === "web") {
