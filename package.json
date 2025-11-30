@@ -20,6 +20,7 @@
     "lint:fix": "biome check --write --unsafe src && biome format --write src",
     "format": "biome format src",
     "format:fix": "biome format src --write",
+    "launch": "bash scripts/launch-relays.sh",
     "test": "vitest",
     "test:coverage": "vitest run --coverage"
   },
