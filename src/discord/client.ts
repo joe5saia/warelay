@@ -95,8 +95,11 @@ export function resolveDiscordConfig(
   const config = cfg ?? loadConfig();
   const discordCfg = config.discord ?? {};
   const storedToken = readDiscordTokenFromProfile();
+  // Source of truth order: config file > env > cached disk token.
   const botToken =
-    process.env.DISCORD_BOT_TOKEN ?? discordCfg.botToken ?? storedToken;
+    discordCfg.botToken ??
+    process.env.DISCORD_BOT_TOKEN ??
+    storedToken;
   if (!botToken) {
     throw new Error(
       "DISCORD_BOT_TOKEN missing. Set it in your environment or warelay config before using provider=discord.",
