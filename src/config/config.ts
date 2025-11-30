@@ -56,6 +56,7 @@ export type WarelayConfig = {
   logging?: LoggingConfig;
   inbound?: {
     allowFrom?: string[]; // E.164 numbers allowed to trigger auto-reply (without whatsapp:)
+    samePhoneMarker?: string; // Prefix for same-phone mode messages (default: "[same-phone]")
     transcribeAudio?: {
       // Optional CLI to turn inbound audio into text; templated args, must output transcript to stdout.
       command: string[];
@@ -152,6 +153,7 @@ const WarelaySchema = z.object({
   inbound: z
     .object({
       allowFrom: z.array(z.string()).optional(),
+      samePhoneMarker: z.string().optional(),
       transcribeAudio: z
         .object({
           command: z.array(z.string()),

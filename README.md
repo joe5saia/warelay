@@ -116,6 +116,16 @@ Best practice: use a dedicated WhatsApp account (separate SIM/eSIM or business a
    ```
 4. Run `warelay relay --provider discord --verbose` to listen, or send with `warelay send --provider discord --to <channel-id> --message "Hi"` (DMs also work).
 
+### Same-phone mode (self-messaging)
+warelay supports running on the same phone number you message from—you chat with yourself and an AI assistant replies in the same bubble. This requires:
+- Adding your own number to `allowFrom` in `warelay.json`
+- The `fromMe` filter is disabled; echo detection in `auto-reply.ts` prevents loops
+
+**Gotchas:**
+- Messages appear in the same chat bubble (WhatsApp "Note to self")
+- Echo detection relies on exact text matching; if the reply is identical to your input, it may be skipped
+- Works best with a dedicated WhatsApp account
+
 ## Configuration
 
 ### Environment (.env)
