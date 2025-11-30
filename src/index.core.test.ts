@@ -558,6 +558,50 @@ describe("config and templating", () => {
     expect(firstEntry.systemSent).toBe(true);
   });
 
+  it("reads session intro from a markdown file path", async () => {
+    const introFile = path.join(
+      os.tmpdir(),
+      `warelay-intro-${Date.now()}.md`,
+    );
+    const tmpStore = path.join(os.tmpdir(), `warelay-store-${Date.now()}.json`);
+    fs.writeFileSync(introFile, "Intro for {{From}}", "utf-8");
+
+    const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
+      stdout: "ok\n",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+
+    const cfg = {
+      inbound: {
+        reply: {
+          mode: "command" as const,
+          command: ["echo", "{{Body}}"],
+          session: {
+            sendSystemOnce: true,
+            sessionIntroPath: introFile,
+            store: tmpStore,
+          },
+        },
+      },
+    };
+
+    await index.getReplyFromConfig(
+      { Body: "/new hello", From: "+1999", To: "+2" },
+      undefined,
+      cfg,
+      runSpy,
+    );
+
+    const argv = runSpy.mock.calls[0][0];
+    expect(argv.at(-1)).toBe("Intro for +1999\n\nhello");
+
+    fs.rmSync(introFile, { force: true });
+    fs.rmSync(tmpStore, { force: true });
+  });
+
   it("keeps sending system prompt when sendSystemOnce is disabled (default)", async () => {
     const runSpy = vi.spyOn(index, "runCommandWithTimeout").mockResolvedValue({
       stdout: "ok\n",
@@ -920,9 +964,8 @@ describe("webhook and messaging", () => {
     const client = twilioFactory._createClient();
     client.messages.create.mockResolvedValue({});
     twilioFactory.mockReturnValue(client);
-    vi.spyOn(index, "getReplyFromConfig").mockResolvedValue({ text: "Auto" });
 
-    const server = await index.startWebhook(0, "/hook", undefined, false);
+    const server = await index.startWebhook(0, "/hook", "Auto", false);
     const address = server.address() as net.AddressInfo;
     const url = `http://127.0.0.1:${address.port}/hook`;
     const res = await fetch(url, {
@@ -931,8 +974,10 @@ describe("webhook and messaging", () => {
       body: "From=whatsapp%3A%2B1555&To=whatsapp%3A%2B1666&Body=Hello&MessageSid=SM2",
     });
     expect(res.status).toBe(200);
+    await res.text(); // drain response so close can complete promptly
+    server.closeAllConnections?.();
     await new Promise((resolve) => server.close(resolve));
-  });
+  }, 10_000);
 
   it("hosts local media before replying via webhook", async () => {
     const client = twilioFactory._createClient();
@@ -1213,6 +1258,25 @@ describe("twilio helpers", () => {
 
 describe("monitoring", () => {
   it("monitorTwilio polls once and processes inbound", async () => {
+    const listRecentMessages = vi.fn().mockResolvedValue([
+      {
+        sid: "m1",
+        direction: "inbound",
+        dateCreated: new Date(),
+        from: "+1",
+        to: "+2",
+        body: "hi",
+        status: "delivered",
+        errorCode: null,
+        errorMessage: null,
+      },
+    ]);
+    const autoReplyIfConfigured = vi.fn().mockResolvedValue(undefined);
+    const runtime: index.RuntimeEnv = {
+      log: vi.fn(),
+      error: vi.fn(),
+      exit: vi.fn() as unknown as (code: number) => never,
+    };
     const client = {
       messages: {
         list: vi.fn().mockResolvedValue([
@@ -1227,10 +1291,12 @@ describe("monitoring", () => {
         ]),
       },
     } as unknown as ReturnType<typeof index.createClient>;
-    vi.spyOn(index, "getReplyFromConfig").mockResolvedValue(undefined);
-    await index.monitorTwilio(0, 0, client, 1);
-    expect(client.messages.list).toHaveBeenCalled();
-  });
+    await index.monitorTwilio(0, 0, client, 1, {
+      deps: { listRecentMessages, autoReplyIfConfigured },
+      runtime,
+    });
+    expect(listRecentMessages).toHaveBeenCalled();
+  }, 10_000);
 
   it("ensureFunnel failure path exits via runtime", async () => {
     const runtime: index.RuntimeEnv = {

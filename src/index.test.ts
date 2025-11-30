@@ -21,6 +21,7 @@ describe("assertProvider", () => {
   it("accepts valid providers", () => {
     expect(() => assertProvider("twilio")).not.toThrow();
     expect(() => assertProvider("web")).not.toThrow();
+    expect(() => assertProvider("discord")).not.toThrow();
   });
 
   it("throws on invalid provider", () => {

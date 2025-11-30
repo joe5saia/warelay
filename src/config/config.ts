@@ -20,6 +20,7 @@ export type SessionConfig = {
   sessionArgBeforeBody?: boolean;
   sendSystemOnce?: boolean;
   sessionIntro?: string;
+  sessionIntroPath?: string;
   typingIntervalSeconds?: number;
   heartbeatMinutes?: number;
 };
@@ -40,6 +41,15 @@ export type WebReconnectConfig = {
 export type WebConfig = {
   heartbeatSeconds?: number;
   reconnect?: WebReconnectConfig;
+};
+
+export type DiscordConfig = {
+  botToken?: string;
+  allowedUsers?: string[];
+  allowedChannels?: string[];
+  allowedGuilds?: string[];
+  mentionOnly?: boolean;
+  replyInThread?: boolean;
 };
 
 export type WarelayConfig = {
@@ -68,9 +78,11 @@ export type WarelayConfig = {
     };
   };
   web?: WebConfig;
+  discord?: DiscordConfig;
 };
 
 export const CONFIG_PATH = path.join(os.homedir(), ".warelay", "warelay.json");
+const CONFIG_DIR = path.dirname(CONFIG_PATH);
 
 const ReplySchema = z
   .object({
@@ -98,6 +110,7 @@ const ReplySchema = z
         sessionArgBeforeBody: z.boolean().optional(),
         sendSystemOnce: z.boolean().optional(),
         sessionIntro: z.string().optional(),
+        sessionIntroPath: z.string().optional(),
         typingIntervalSeconds: z.number().int().positive().optional(),
       })
       .optional(),
@@ -162,6 +175,16 @@ const WarelaySchema = z.object({
         .optional(),
     })
     .optional(),
+  discord: z
+    .object({
+      botToken: z.string().min(1).optional(),
+      allowedUsers: z.array(z.string()).optional(),
+      allowedChannels: z.array(z.string()).optional(),
+      allowedGuilds: z.array(z.string()).optional(),
+      mentionOnly: z.boolean().optional(),
+      replyInThread: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export function loadConfig(): WarelayConfig {
@@ -184,4 +207,32 @@ export function loadConfig(): WarelayConfig {
     console.error(`Failed to read config at ${CONFIG_PATH}`, err);
     return {};
   }
+}
+
+export function resolveSessionIntro(
+  sessionCfg?: SessionConfig,
+): string | undefined {
+  if (!sessionCfg) return undefined;
+  const { sessionIntroPath, sessionIntro } = sessionCfg;
+  if (sessionIntroPath) {
+    const resolvedPath = path.isAbsolute(sessionIntroPath)
+      ? sessionIntroPath
+      : path.join(CONFIG_DIR, sessionIntroPath);
+    try {
+      if (!fs.existsSync(resolvedPath)) {
+        console.error(
+          `sessionIntroPath not found: ${resolvedPath}. Falling back to inline sessionIntro if provided.`,
+        );
+      } else {
+        return fs.readFileSync(resolvedPath, "utf-8");
+      }
+    } catch (err) {
+      console.error(
+        `Failed to read sessionIntroPath at ${resolvedPath}. Falling back to inline sessionIntro if provided.`,
+        err,
+      );
+    }
+  }
+
+  return sessionIntro;
 }

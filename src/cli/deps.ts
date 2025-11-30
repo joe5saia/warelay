@@ -13,7 +13,10 @@ import {
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { createClient } from "../twilio/client.js";
 import { listRecentMessages } from "../twilio/messages.js";
-import { monitorTwilio as monitorTwilioImpl } from "../twilio/monitor.js";
+import {
+  type MonitorDeps,
+  monitorTwilio as monitorTwilioImpl,
+} from "../twilio/monitor.js";
 import { sendMessage, waitForFinalStatus } from "../twilio/send.js";
 import { findWhatsappSenderSid } from "../twilio/senders.js";
 import { assertProvider, sleep } from "../utils.js";
@@ -51,19 +54,22 @@ export async function monitorTwilio(
   lookbackMinutes: number,
   clientOverride?: ReturnType<typeof createClient>,
   maxIterations = Infinity,
+  opts?: { deps?: Partial<MonitorDeps>; runtime?: RuntimeEnv },
 ) {
   // Adapter that wires default deps/runtime for the Twilio monitor loop.
+  const deps: MonitorDeps = {
+    autoReplyIfConfigured,
+    listRecentMessages,
+    readEnv,
+    createClient,
+    sleep,
+    ...opts?.deps,
+  };
   return monitorTwilioImpl(intervalSeconds, lookbackMinutes, {
     client: clientOverride,
     maxIterations,
-    deps: {
-      autoReplyIfConfigured,
-      listRecentMessages,
-      readEnv,
-      createClient,
-      sleep,
-    },
-    runtime: defaultRuntime,
+    deps,
+    runtime: opts?.runtime ?? defaultRuntime,
   });
 }
 

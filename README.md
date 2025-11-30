@@ -1,4 +1,4 @@
-# 📡 warelay — Send, receive, and auto-reply on WhatsApp.
+# 📡 warelay — Send, receive, and auto-reply on WhatsApp + Discord.
 
 <p align="center">
   <img src="README-header.png" alt="warelay header" width="640">
@@ -10,7 +10,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
 </p>
 
-Send, receive, auto-reply, and inspect WhatsApp messages over **Twilio** or your personal **WhatsApp Web** session. Ships with a one-command webhook setup (Tailscale Funnel + Twilio callback) and a configurable auto-reply engine (plain text or command/Claude driven).
+Send, receive, auto-reply, and inspect messages over **Twilio WhatsApp**, your personal **WhatsApp Web** session, or **Discord**. Ships with a one-command webhook setup (Tailscale Funnel + Twilio callback) and a configurable auto-reply engine (plain text or command/Claude driven).
 
 ### Clawd (personal assistant)
 I'm using warelay to run my personal, pro-active assistant, **Clawd**. Follow me on Twitter: [@steipete](https://twitter.com/steipete). This project is brand-new and there's a lot to discover. See the exact Claude setup in [`docs/clawd.md`](https://github.com/steipete/warelay/blob/main/docs/clawd.md).
@@ -33,10 +33,15 @@ Install from npm (global): `npm install -g warelay` (Node 22+). Then choose **on
    - Polling (no ingress): `warelay relay --provider twilio --interval 5 --lookback 10`
    - Webhook + public URL via Tailscale Funnel: `warelay webhook --ingress tailscale --port 42873 --path /webhook/whatsapp --verbose`
 
+**C) Discord bot**
+1. In Discord Developer Portal, create a bot, enable **MESSAGE CONTENT INTENT**, and invite it to your server.
+2. Add `DISCORD_BOT_TOKEN` to `.env`.
+3. Reply & send: `warelay relay --provider discord --verbose` or `warelay send --provider discord --to <channel-id> --message "Hi from warelay"`.
+
 > Already developing locally? You can still run `pnpm install` and `pnpm warelay ...` from the repo, but end users only need the npm package.
 
 ## Main Features
-- **Two providers:** Twilio (default) for reliable delivery + status; Web provider for quick personal sends/receives via QR login.
+- **Three providers:** Twilio (default) for reliable delivery + status; Web for quick personal sends/receives via QR login; Discord bot provider for DMs and mentions.
 - **Auto-replies:** Static templates or external commands (Claude-aware), with per-sender or global sessions and `/new` resets.
 - Claude setup guide: see `docs/claude-config.md` for the exact Claude CLI configuration we support.
 - **Webhook in one go:** `warelay webhook --ingress tailscale` enables Tailscale Funnel, runs the webhook server, and updates the Twilio sender callback URL.
@@ -46,8 +51,8 @@ Install from npm (global): `npm install -g warelay` (Node 22+). Then choose **on
 ## Command Cheat Sheet
 | Command | What it does | Core flags |
 | --- | --- | --- |
-| `warelay send` | Send a WhatsApp message (Twilio or Web) | `--to <e164>` `--message <text>` `--wait <sec>` `--poll <sec>` `--provider twilio\|web` `--json` `--dry-run` `--verbose` |
-| `warelay relay` | Auto-reply loop (poll Twilio or listen on Web) | `--provider <auto\|twilio\|web>` `--interval <sec>` `--lookback <min>` `--verbose` |
+| `warelay send` | Send a message (Twilio, Web, or Discord) | `--to <e164|channel>` `--message <text>` `--wait <sec>` `--poll <sec>` `--provider twilio\|web\|discord` `--json` `--dry-run` `--verbose` |
+| `warelay relay` | Auto-reply loop (poll Twilio, Web, or Discord) | `--provider <auto\|twilio\|web\|discord>` `--interval <sec>` `--lookback <min>` `--verbose` |
 | `warelay status` | Show recent sent/received messages | `--limit <n>` `--lookback <min>` `--json` `--verbose` |
 | `warelay heartbeat` | Trigger one heartbeat poll (web) | `--provider <auto\|web>` `--to <e164?>` `--session-id <uuid?>` `--all` `--verbose` |
 | `warelay relay:heartbeat` | Run relay with an immediate heartbeat (no tmux) | `--provider <auto\|web>` `--verbose` |
@@ -89,9 +94,27 @@ Install from npm (global): `npm install -g warelay` (Node 22+). Then choose **on
 ## Providers
 - **Twilio (default):** needs `.env` creds + WhatsApp-enabled number; supports delivery tracking, polling, webhooks, and auto-reply typing indicators.
 - **Web (`--provider web`):** uses your personal WhatsApp via Baileys; supports send/receive + auto-reply, but no delivery-status wait; cache lives in `~/.warelay/credentials/` (rerun `login` if logged out). If the Web socket closes, the relay exits instead of pivoting to Twilio.
+- **Discord (`--provider discord`):** uses `DISCORD_BOT_TOKEN`; replies to DMs or @mentions in channels/threads (mention-only by default). Set allowlists in `discord.allowedUsers|allowedChannels|allowedGuilds` to scope who can trigger the bot.
 - **Auto-select (`relay` only):** `--provider auto` picks Web when a cache exists at start, otherwise Twilio polling. It will not swap from Web to Twilio mid-run if the Web session drops.
 
 Best practice: use a dedicated WhatsApp account (separate SIM/eSIM or business account) for automation instead of your primary personal account to avoid unexpected logouts or rate limits.
+
+### Discord provider setup (quick)
+1. In Discord Developer Portal → Bot: enable **MESSAGE CONTENT INTENT** (and invite the bot with Send/View permissions).
+2. Copy the bot token into `.env` as `DISCORD_BOT_TOKEN`.
+3. Optional allowlists in `~/.warelay/warelay.json`:
+   ```json5
+   {
+     discord: {
+       mentionOnly: true, // default: only respond to @mentions in guild channels
+       replyInThread: true, // reply in the same thread when applicable
+       allowedUsers: ["123..."], // Discord user IDs
+       allowedChannels: ["456..."], // channel IDs
+       allowedGuilds: ["789..."] // server IDs
+     }
+   }
+   ```
+4. Run `warelay relay --provider discord --verbose` to listen, or send with `warelay send --provider discord --to <channel-id> --message "Hi"` (DMs also work).
 
 ## Configuration
 
@@ -104,6 +127,7 @@ Best practice: use a dedicated WhatsApp account (separate SIM/eSIM or business a
 | `TWILIO_API_SECRET` | Yes* | API secret paired with `TWILIO_API_KEY` |
 | `TWILIO_WHATSAPP_FROM` | Yes (Twilio provider) | WhatsApp-enabled sender, e.g. `whatsapp:+19995550123` |
 | `TWILIO_SENDER_SID` | Optional | Overrides auto-discovery of the sender SID |
+| `DISCORD_BOT_TOKEN` | Yes (Discord provider) | Bot token with MESSAGE CONTENT intent enabled |
 
 (*Provide either auth token OR api key/secret.)
 
@@ -150,7 +174,7 @@ Best practice: use a dedicated WhatsApp account (separate SIM/eSIM or business a
 ### Claude CLI setup (how we run it)
 1) Install the official Claude CLI (e.g., `brew install anthropic-ai/cli/claude` or follow the Anthropic docs) and run `claude login` so it can read your API key.
 2) In `warelay.json`, set `reply.mode` to `"command"` and point `command[0]` to `"claude"`; set `claudeOutputFormat` to `"text"` (or `"json"`/`"stream-json"` if you want warelay to parse and trim the JSON output).
-3) (Optional) Add `bodyPrefix` to inject a system prompt and `session` settings to keep multi-turn context (`/new` resets by default). Set `sendSystemOnce: true` (plus an optional `sessionIntro`) to only send that prompt on the first turn of each session.
+3) (Optional) Add `bodyPrefix` to inject a system prompt and `session` settings to keep multi-turn context (`/new` resets by default). Set `sendSystemOnce: true` with a `sessionIntro` or `sessionIntroPath` (e.g., a markdown file next to `warelay.json`) to only send that prompt on the first turn of each session.
 4) Run `pnpm warelay relay --provider auto` (or `--provider web|twilio`) and send a WhatsApp message; warelay will queue the Claude call, stream typing indicators (Twilio provider), parse the result, and send back the text.
 
 ### Auto-reply parameter table (compact)
@@ -170,6 +194,7 @@ Best practice: use a dedicated WhatsApp account (separate SIM/eSIM or business a
 | `inbound.reply.session.store` | `string` (default: `~/.warelay/sessions.json`) | Custom session store path. |
 | `inbound.reply.session.sendSystemOnce` | `boolean` (default: `false`) | If `true`, only include the system prompt/template on the first turn of a session. |
 | `inbound.reply.session.sessionIntro` | `string` | Optional intro text sent once per new session (prepended before the body when `sendSystemOnce` is used). |
+| `inbound.reply.session.sessionIntroPath` | `string` | Path to a markdown/templated intro loaded from disk (absolute or relative to `~/.warelay`); overrides `sessionIntro` when present. |
 | `inbound.reply.typingIntervalSeconds` | `number` (default: `8` for command replies) | How often to refresh typing indicators while the command/Claude run is in flight. |
 | `inbound.reply.session.sessionArgNew` | `string[]` (default: `["--session-id","{{SessionId}}"]`) | Args injected for a new session run. |
 | `inbound.reply.session.sessionArgResume` | `string[]` (default: `["--resume","{{SessionId}}"]`) | Args for resumed sessions. |

@@ -56,6 +56,12 @@ describe("sleep", () => {
 });
 
 describe("assertProvider", () => {
+  it("accepts valid providers", () => {
+    expect(() => assertProvider("twilio")).not.toThrow();
+    expect(() => assertProvider("web")).not.toThrow();
+    expect(() => assertProvider("discord")).not.toThrow();
+  });
+
   it("throws for invalid provider", () => {
     expect(() => assertProvider("bad" as string)).toThrow();
   });

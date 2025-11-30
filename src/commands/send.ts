@@ -1,4 +1,7 @@
 import type { CliDeps } from "../cli/deps.js";
+import { createAndLoginDiscordClient } from "../discord/client.js";
+import { type SendableChannel, sendDiscordMessage } from "../discord/send.js";
+import { ensureDiscordEnv } from "../env.js";
 import { info } from "../globals.js";
 import type { RuntimeEnv } from "../runtime.js";
 import type { Provider } from "../utils.js";
@@ -61,6 +64,48 @@ export async function sendCommand(
           2,
         ),
       );
+    }
+    return;
+  }
+
+  if (opts.provider === "discord") {
+    ensureDiscordEnv(runtime);
+    if (opts.dryRun) {
+      runtime.log(
+        `[dry-run] would send via discord -> ${opts.to}: ${opts.message}${opts.media ? ` (media ${opts.media})` : ""}`,
+      );
+      return;
+    }
+    const { client } = await createAndLoginDiscordClient();
+    try {
+      const channel = await client.channels.fetch(opts.to);
+      if (!channel || !channel.isTextBased()) {
+        throw new Error(
+          `Channel ${opts.to} not found or not text-capable for Discord`,
+        );
+      }
+      if (!("send" in channel) || typeof channel.send !== "function") {
+        throw new Error(
+          `Channel ${opts.to} is not send-capable (missing send method)`,
+        );
+      }
+
+      const results = await sendDiscordMessage(
+        channel as SendableChannel,
+        opts.message,
+        opts.media ? [opts.media] : [],
+      );
+      if (opts.json) {
+        runtime.log(JSON.stringify(results, null, 2));
+      } else {
+        runtime.log(
+          info(
+            `Sent Discord message to ${opts.to} (${results.length} chunk${results.length === 1 ? "" : "s"})`,
+          ),
+        );
+      }
+    } finally {
+      client.destroy();
     }
     return;
   }

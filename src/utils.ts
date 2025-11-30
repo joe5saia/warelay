@@ -6,11 +6,11 @@ export async function ensureDir(dir: string) {
   await fs.promises.mkdir(dir, { recursive: true });
 }
 
-export type Provider = "twilio" | "web";
+export type Provider = "twilio" | "web" | "discord";
 
 export function assertProvider(input: string): asserts input is Provider {
-  if (input !== "twilio" && input !== "web") {
-    throw new Error("Provider must be 'twilio' or 'web'");
+  if (input !== "twilio" && input !== "web" && input !== "discord") {
+    throw new Error("Provider must be 'twilio', 'web', or 'discord'");
   }
 }
 

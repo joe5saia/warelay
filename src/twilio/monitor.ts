@@ -7,7 +7,7 @@ import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { sleep, withWhatsAppPrefix } from "../utils.js";
 import { createClient } from "./client.js";
 
-type MonitorDeps = {
+export type MonitorDeps = {
   autoReplyIfConfigured: typeof autoReplyIfConfigured;
   listRecentMessages: (
     lookbackMinutes: number,

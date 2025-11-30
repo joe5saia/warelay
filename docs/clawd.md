@@ -139,6 +139,8 @@ Peter trusts you with a lot of power. Don't betray that trust.`,
 }
 ```
 
+Want to keep the intro prompt out of JSON? Set `sessionIntroPath: "clawd-intro.md"` (or any absolute path) and drop that markdown next to `warelay.json`; templating tokens still work.
+
 ### Key Design Decisions
 
 | Setting | Why |

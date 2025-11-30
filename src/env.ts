@@ -104,3 +104,15 @@ export function ensureTwilioEnv(runtime: RuntimeEnv = defaultRuntime) {
     runtime.exit(1);
   }
 }
+
+export function ensureDiscordEnv(runtime: RuntimeEnv = defaultRuntime) {
+  // Guardrails: fail fast when Discord bot token is missing.
+  if (!process.env.DISCORD_BOT_TOKEN) {
+    runtime.error(
+      danger(
+        "DISCORD_BOT_TOKEN is required for Discord provider. Set it in your .env (Developer Portal -> Bot token).",
+      ),
+    );
+    runtime.exit(1);
+  }
+}

@@ -4,7 +4,8 @@ import { sendCommand } from "../commands/send.js";
 import { statusCommand } from "../commands/status.js";
 import { webhookCommand } from "../commands/webhook.js";
 import { loadConfig } from "../config/config.js";
-import { ensureTwilioEnv } from "../env.js";
+import { monitorDiscordProvider } from "../discord/index.js";
+import { ensureDiscordEnv, ensureTwilioEnv } from "../env.js";
 import { danger, info, setVerbose, setYes } from "../globals.js";
 import { getResolvedLoggerSettings } from "../logging.js";
 import {
@@ -36,7 +37,7 @@ export function buildProgram() {
   const program = new Command();
   const PROGRAM_VERSION = VERSION;
   const TAGLINE =
-    "Send, receive, and auto-reply on WhatsApp—Twilio-backed or QR-linked.";
+    "Send, receive, and auto-reply on WhatsApp or Discord—Twilio-backed, QR-linked, or bot token.";
 
   program
     .name("warelay")
@@ -133,10 +134,10 @@ export function buildProgram() {
 
   program
     .command("send")
-    .description("Send a WhatsApp message")
+    .description("Send a message (WhatsApp or Discord)")
     .requiredOption(
       "-t, --to <number>",
-      "Recipient number in E.164 (e.g. +15551234567)",
+      "Recipient (E.164 for WhatsApp, channel ID or user DM channel for Discord)",
     )
     .requiredOption("-m, --message <text>", "Message body")
     .option(
@@ -154,7 +155,11 @@ export function buildProgram() {
       "20",
     )
     .option("-p, --poll <seconds>", "Polling interval while waiting", "2")
-    .option("--provider <provider>", "Provider: twilio | web", "twilio")
+    .option(
+      "--provider <provider>",
+      "Provider: twilio | web | discord",
+      "twilio",
+    )
     .option("--dry-run", "Print payload and skip sending", false)
     .option("--json", "Output result as JSON", false)
     .option("--verbose", "Verbose logging", false)
@@ -243,8 +248,10 @@ Examples:
         defaultRuntime.exit(1);
       }
       const providerPref = String(opts.provider ?? "auto");
-      if (!["auto", "web", "twilio"].includes(providerPref)) {
-        defaultRuntime.error("--provider must be auto, web, or twilio");
+      if (!["auto", "web", "twilio", "discord"].includes(providerPref)) {
+        defaultRuntime.error(
+          "--provider must be auto, web, twilio, or discord",
+        );
         defaultRuntime.exit(1);
       }
 
@@ -288,8 +295,10 @@ Examples:
 
   program
     .command("relay")
-    .description("Auto-reply to inbound messages (auto-selects web or twilio)")
-    .option("--provider <provider>", "auto | web | twilio", "auto")
+    .description(
+      "Auto-reply to inbound messages (auto-selects web/twilio or forces discord/web/twilio)",
+    )
+    .option("--provider <provider>", "auto | web | twilio | discord", "auto")
     .option("-i, --interval <seconds>", "Polling interval for twilio mode", "5")
     .option(
       "-l, --lookback <minutes>",
@@ -331,8 +340,10 @@ Examples:
       const { file: logFile, level: logLevel } = getResolvedLoggerSettings();
       defaultRuntime.log(info(`logs: ${logFile} (level ${logLevel})`));
       const providerPref = String(opts.provider ?? "auto");
-      if (!["auto", "web", "twilio"].includes(providerPref)) {
-        defaultRuntime.error("--provider must be auto, web, or twilio");
+      if (!["auto", "web", "twilio", "discord"].includes(providerPref)) {
+        defaultRuntime.error(
+          "--provider must be auto, web, twilio, or discord",
+        );
         defaultRuntime.exit(1);
       }
       const intervalSeconds = Number.parseInt(opts.interval, 10);
@@ -408,6 +419,42 @@ Examples:
       if (webRetryMax !== undefined) reconnect.maxMs = webRetryMax;
       if (Object.keys(reconnect).length > 0) {
         webTuning.reconnect = reconnect;
+      }
+
+      if (providerPref === "discord") {
+        ensureDiscordEnv();
+        try {
+          await monitorDiscordProvider(
+            { verbose: Boolean(opts.verbose) },
+            defaultRuntime,
+          );
+          return;
+        } catch (err) {
+          defaultRuntime.error(
+            danger(
+              `Discord relay failed: ${String(err)}. Check DISCORD_BOT_TOKEN and intents.`,
+            ),
+          );
+          defaultRuntime.exit(1);
+        }
+      }
+
+      if (providerPref === "discord") {
+        ensureDiscordEnv();
+        try {
+          await monitorDiscordProvider(
+            { verbose: Boolean(opts.verbose) },
+            defaultRuntime,
+          );
+          return;
+        } catch (err) {
+          defaultRuntime.error(
+            danger(
+              `Discord relay failed: ${String(err)}. Check DISCORD_BOT_TOKEN and intents.`,
+            ),
+          );
+          defaultRuntime.exit(1);
+        }
       }
 
       const provider = await pickProvider(providerPref as Provider | "auto");

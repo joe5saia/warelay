@@ -1,7 +1,11 @@
 import crypto from "node:crypto";
 
 import type { MessageInstance } from "twilio/lib/rest/api/v2010/account/message.js";
-import { loadConfig, type WarelayConfig } from "../config/config.js";
+import {
+  loadConfig,
+  resolveSessionIntro,
+  type WarelayConfig,
+} from "../config/config.js";
 import {
   DEFAULT_IDLE_MINUTES,
   DEFAULT_RESET_TRIGGER,
@@ -163,9 +167,13 @@ export async function getReplyFromConfig(
   // Optional prefix injected before Body for templating/command prompts.
   const sendSystemOnce = sessionCfg?.sendSystemOnce === true;
   const isFirstTurnInSession = isNewSession || !systemSent;
+  const rawSessionIntro =
+    isFirstTurnInSession && sessionCfg
+      ? resolveSessionIntro(sessionCfg)
+      : undefined;
   const sessionIntro =
-    isFirstTurnInSession && sessionCfg?.sessionIntro
-      ? applyTemplate(sessionCfg.sessionIntro, sessionCtx)
+    rawSessionIntro && isFirstTurnInSession
+      ? applyTemplate(rawSessionIntro, sessionCtx)
       : "";
   const bodyPrefix = reply?.bodyPrefix
     ? applyTemplate(reply.bodyPrefix, sessionCtx)

@@ -4,10 +4,12 @@ const sendCommand = vi.fn();
 const statusCommand = vi.fn();
 const webhookCommand = vi.fn().mockResolvedValue(undefined);
 const ensureTwilioEnv = vi.fn();
+const ensureDiscordEnv = vi.fn();
 const loginWeb = vi.fn();
 const monitorWebProvider = vi.fn();
 const pickProvider = vi.fn();
 const monitorTwilio = vi.fn();
+const monitorDiscordProvider = vi.fn();
 const logTwilioFrom = vi.fn();
 const logWebSelfId = vi.fn();
 const waitForever = vi.fn();
@@ -24,13 +26,14 @@ const runtime = {
 vi.mock("../commands/send.js", () => ({ sendCommand }));
 vi.mock("../commands/status.js", () => ({ statusCommand }));
 vi.mock("../commands/webhook.js", () => ({ webhookCommand }));
-vi.mock("../env.js", () => ({ ensureTwilioEnv }));
+vi.mock("../env.js", () => ({ ensureTwilioEnv, ensureDiscordEnv }));
 vi.mock("../runtime.js", () => ({ defaultRuntime: runtime }));
 vi.mock("../provider-web.js", () => ({
   loginWeb,
   monitorWebProvider,
   pickProvider,
 }));
+vi.mock("../discord/index.js", () => ({ monitorDiscordProvider }));
 vi.mock("./deps.js", () => ({
   createDefaultDeps: () => ({ waitForever }),
   logTwilioFrom,
@@ -60,7 +63,7 @@ describe("cli program", () => {
       program.parseAsync(["relay", "--provider", "bogus"], { from: "user" }),
     ).rejects.toThrow("exit");
     expect(runtime.error).toHaveBeenCalledWith(
-      "--provider must be auto, web, or twilio",
+      "--provider must be auto, web, twilio, or discord",
     );
   });
 

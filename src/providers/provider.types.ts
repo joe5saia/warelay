@@ -1,1 +1,1 @@
-export type Provider = "twilio" | "web";
+export type Provider = "twilio" | "web" | "discord";
