@@ -1,9 +1,13 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 import JSON5 from "json5";
 import { z } from "zod";
+import {
+  type ConfigRuntimeContext,
+  resolveConfigPath,
+  resolveProfilePaths,
+} from "./runtime.js";
 
 export type ReplyMode = "text" | "command";
 export type ClaudeOutputFormat = "text" | "json" | "stream-json";
@@ -50,6 +54,9 @@ export type DiscordConfig = {
   allowedGuilds?: string[];
   mentionOnly?: boolean;
   replyInThread?: boolean;
+  assistantLabel?: string;
+  persona?: string;
+  showAssistantLabel?: boolean;
 };
 
 export type WarelayConfig = {
@@ -81,9 +88,6 @@ export type WarelayConfig = {
   web?: WebConfig;
   discord?: DiscordConfig;
 };
-
-export const CONFIG_PATH = path.join(os.homedir(), ".warelay", "warelay.json");
-const CONFIG_DIR = path.dirname(CONFIG_PATH);
 
 const ReplySchema = z
   .object({
@@ -185,41 +189,100 @@ const WarelaySchema = z.object({
       allowedGuilds: z.array(z.string()).optional(),
       mentionOnly: z.boolean().optional(),
       replyInThread: z.boolean().optional(),
+      assistantLabel: z.string().optional(),
+      persona: z.string().optional(),
+      showAssistantLabel: z.boolean().optional(),
     })
     .optional(),
 });
 
-export function loadConfig(): WarelayConfig {
-  // Read ~/.warelay/warelay.json (JSON5) if present.
+export type ConfigLoadOptions = ConfigRuntimeContext & {
+  require?: boolean;
+};
+
+export type ConfigLoadResult = {
+  config: WarelayConfig;
+  profile?: string;
+  configPath: string | null;
+  source: ReturnType<typeof resolveConfigPath>["source"];
+  warnings: string[];
+};
+
+export function loadConfigWithMeta(opts?: ConfigLoadOptions): ConfigLoadResult {
+  const warnings: string[] = [];
+  const resolvedPaths = resolveProfilePaths(opts);
+  const requireConfig = opts?.require ?? resolvedPaths.source !== "legacy";
+
+  if (!resolvedPaths.exists) {
+    if (requireConfig) {
+      throw new Error(
+        `Config not found for profile "${resolvedPaths.profileLabel}" at ${resolvedPaths.path}`,
+      );
+    }
+    warnings.push(
+      `Config not found at ${resolvedPaths.path}; proceeding with defaults`,
+    );
+    return {
+      config: {},
+      profile: resolvedPaths.profile ?? undefined,
+      configPath: null,
+      source: resolvedPaths.source,
+      warnings,
+    };
+  }
+
   try {
-    if (!fs.existsSync(CONFIG_PATH)) return {};
-    const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
+    const raw = fs.readFileSync(resolvedPaths.path, "utf-8");
     const parsed = JSON5.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return {};
+    if (typeof parsed !== "object" || parsed === null) {
+      throw new Error("Config root must be an object");
+    }
     const validated = WarelaySchema.safeParse(parsed);
     if (!validated.success) {
-      console.error("Invalid warelay config:");
-      for (const iss of validated.error.issues) {
-        console.error(`- ${iss.path.join(".")}: ${iss.message}`);
-      }
-      return {};
+      const issues = validated.error.issues
+        .map((iss) => `${iss.path.join(".") || "<root>"}: ${iss.message}`)
+        .join("; ");
+      throw new Error(`Invalid warelay config: ${issues}`);
     }
-    return validated.data as WarelayConfig;
+    return {
+      config: validated.data as WarelayConfig,
+      profile: resolvedPaths.profile ?? undefined,
+      configPath: resolvedPaths.path,
+      source: resolvedPaths.source,
+      warnings,
+    };
   } catch (err) {
-    console.error(`Failed to read config at ${CONFIG_PATH}`, err);
-    return {};
+    if (requireConfig) {
+      throw err instanceof Error ? err : new Error(String(err));
+    }
+    console.error(`Failed to read config at ${resolvedPaths.path}`, err);
+    return {
+      config: {},
+      profile: resolvedPaths.profile ?? undefined,
+      configPath: null,
+      source: resolvedPaths.source,
+      warnings,
+    };
   }
+}
+
+export function loadConfig(opts?: ConfigLoadOptions): WarelayConfig {
+  const { config } = loadConfigWithMeta(opts);
+  return config;
 }
 
 export function resolveSessionIntro(
   sessionCfg?: SessionConfig,
+  configDirOverride?: string,
 ): string | undefined {
   if (!sessionCfg) return undefined;
   const { sessionIntroPath, sessionIntro } = sessionCfg;
   if (sessionIntroPath) {
+    const resolvedConfig = resolveConfigPath();
+    const configDir = configDirOverride ?? resolvedConfig.configDir;
     const resolvedPath = path.isAbsolute(sessionIntroPath)
       ? sessionIntroPath
-      : path.join(CONFIG_DIR, sessionIntroPath);
+      : path.join(configDir, sessionIntroPath);
     try {
       if (!fs.existsSync(resolvedPath)) {
         console.error(

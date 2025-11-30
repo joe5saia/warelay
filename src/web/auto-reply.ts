@@ -578,6 +578,7 @@ export async function monitorWebProvider(
             MediaPath: msg.mediaPath,
             MediaUrl: msg.mediaUrl,
             MediaType: msg.mediaType,
+            provider: "web",
           },
           {
             onReplyStart: msg.sendComposing,
@@ -749,6 +750,7 @@ export async function monitorWebProvider(
             MediaPath: undefined,
             MediaUrl: undefined,
             MediaType: undefined,
+            provider: "web",
           },
           {
             onReplyStart: lastInboundMsg.sendComposing,

@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import {
   DisconnectReason,
@@ -12,6 +11,7 @@ import {
 } from "@whiskeysockets/baileys";
 import qrcode from "qrcode-terminal";
 
+import { resolveProfilePaths } from "../config/runtime.js";
 import { danger, info, success } from "../globals.js";
 import { getChildLogger } from "../logging.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
@@ -19,17 +19,16 @@ import type { Provider } from "../utils.js";
 import { ensureDir, jidToE164 } from "../utils.js";
 import { VERSION } from "../version.js";
 
-export const WA_WEB_AUTH_DIR = path.join(
-  os.homedir(),
-  ".warelay",
-  "credentials",
-);
+export function getWebAuthDir() {
+  return resolveProfilePaths().credentialsDir;
+}
 
 /**
  * Create a Baileys socket backed by the multi-file auth store we keep on disk.
  * Consumers can opt into QR printing for interactive login flows.
  */
 export async function createWaSocket(printQr: boolean, verbose: boolean) {
+  const authDir = getWebAuthDir();
   const logger = getChildLogger(
     { module: "baileys" },
     {
@@ -41,8 +40,8 @@ export async function createWaSocket(printQr: boolean, verbose: boolean) {
   if (typeof loggerAny.trace !== "function") {
     loggerAny.trace = () => {};
   }
-  await ensureDir(WA_WEB_AUTH_DIR);
-  const { state, saveCreds } = await useMultiFileAuthState(WA_WEB_AUTH_DIR);
+  await ensureDir(authDir);
+  const { state, saveCreds } = await useMultiFileAuthState(authDir);
   const { version } = await fetchLatestBaileysVersion();
   const sock = makeWASocket({
     auth: {
@@ -147,8 +146,9 @@ export function formatError(err: unknown): string {
 }
 
 export async function webAuthExists() {
+  const authDir = getWebAuthDir();
   return fs
-    .access(WA_WEB_AUTH_DIR)
+    .access(authDir)
     .then(() => true)
     .catch(() => false);
 }
@@ -159,7 +159,8 @@ export async function logoutWeb(runtime: RuntimeEnv = defaultRuntime) {
     runtime.log(info("No WhatsApp Web session found; nothing to delete."));
     return false;
   }
-  await fs.rm(WA_WEB_AUTH_DIR, { recursive: true, force: true });
+  const authDir = getWebAuthDir();
+  await fs.rm(authDir, { recursive: true, force: true });
   runtime.log(
     success(
       "Cleared WhatsApp Web credentials. Run `warelay login --provider web` to relink.",
@@ -170,7 +171,7 @@ export async function logoutWeb(runtime: RuntimeEnv = defaultRuntime) {
 
 function readWebSelfId() {
   // Read the cached WhatsApp Web identity (jid + E.164) from disk if present.
-  const credsPath = path.join(WA_WEB_AUTH_DIR, "creds.json");
+  const credsPath = path.join(getWebAuthDir(), "creds.json");
   try {
     if (!fsSync.existsSync(credsPath)) {
       return { e164: null, jid: null } as const;
@@ -190,7 +191,7 @@ function readWebSelfId() {
  * Helpful for heartbeats/observability to spot stale credentials.
  */
 export function getWebAuthAgeMs(): number | null {
-  const credsPath = path.join(WA_WEB_AUTH_DIR, "creds.json");
+  const credsPath = path.join(getWebAuthDir(), "creds.json");
   try {
     const stats = fsSync.statSync(credsPath);
     return Date.now() - stats.mtimeMs;

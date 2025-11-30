@@ -12,7 +12,7 @@ describe("providers/web entrypoint", () => {
     expect(entry.monitorWebProvider).toBe(impl.monitorWebProvider);
     expect(entry.pickProvider).toBe(impl.pickProvider);
     expect(entry.sendMessageWeb).toBe(impl.sendMessageWeb);
-    expect(entry.WA_WEB_AUTH_DIR).toBe(impl.WA_WEB_AUTH_DIR);
+    expect(entry.getWebAuthDir).toBe(impl.getWebAuthDir);
     expect(entry.waitForWaConnection).toBe(impl.waitForWaConnection);
     expect(entry.webAuthExists).toBe(impl.webAuthExists);
   });

@@ -4,7 +4,8 @@ import path from "node:path";
 
 import JSON5 from "json5";
 import type { MsgContext } from "../auto-reply/templating.js";
-import { CONFIG_DIR, normalizeE164 } from "../utils.js";
+import { normalizeE164 } from "../utils.js";
+import { resolveProfilePaths } from "./runtime.js";
 
 export type SessionScope = "per-sender" | "global";
 
@@ -14,12 +15,14 @@ export type SessionEntry = {
   systemSent?: boolean;
 };
 
-export const SESSION_STORE_DEFAULT = path.join(CONFIG_DIR, "sessions.json");
+export function getDefaultSessionStore() {
+  return resolveProfilePaths().sessionStorePath;
+}
 export const DEFAULT_RESET_TRIGGER = "/new";
 export const DEFAULT_IDLE_MINUTES = 60;
 
 export function resolveStorePath(store?: string) {
-  if (!store) return SESSION_STORE_DEFAULT;
+  if (!store) return getDefaultSessionStore();
   if (store.startsWith("~"))
     return path.resolve(store.replace("~", os.homedir()));
   return path.resolve(store);

@@ -617,10 +617,7 @@ describe("config and templating", () => {
   });
 
   it("reads session intro from a markdown file path", async () => {
-    const introFile = path.join(
-      os.tmpdir(),
-      `warelay-intro-${Date.now()}.md`,
-    );
+    const introFile = path.join(os.tmpdir(), `warelay-intro-${Date.now()}.md`);
     const tmpStore = path.join(os.tmpdir(), `warelay-store-${Date.now()}.json`);
     fs.writeFileSync(introFile, "Intro for {{From}}", "utf-8");
 

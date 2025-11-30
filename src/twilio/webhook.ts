@@ -81,6 +81,7 @@ export async function startWebhook(
           MediaPath: mediaPath,
           MediaUrl: mediaUrlInbound,
           MediaType: mediaType,
+          provider: "twilio",
         },
         {
           onReplyStart: () => sendTypingIndicator(client, runtime, MessageSid),

@@ -3,7 +3,12 @@ import { Command } from "commander";
 import { sendCommand } from "../commands/send.js";
 import { statusCommand } from "../commands/status.js";
 import { webhookCommand } from "../commands/webhook.js";
-import { loadConfig } from "../config/config.js";
+import { loadConfig, loadConfigWithMeta } from "../config/config.js";
+import {
+  resolveConfigPath,
+  resolveProfilePaths,
+  setRuntimeConfigContext,
+} from "../config/runtime.js";
 import { monitorDiscordProvider } from "../discord/index.js";
 import { ensureDiscordEnv, ensureTwilioEnv } from "../env.js";
 import { danger, info, setVerbose, setYes } from "../globals.js";
@@ -32,6 +37,8 @@ import {
   monitorTwilio,
 } from "./deps.js";
 import { spawnRelayTmux } from "./relay_tmux.js";
+
+let runtimeContextInitialized = false;
 
 export function buildProgram() {
   const program = new Command();
@@ -105,6 +112,52 @@ export function buildProgram() {
     "afterAll",
     `\n${chalk.bold.cyan("Examples:")}\n${fmtExamples}\n`,
   );
+
+  program
+    .option("--config <path>", "Path to warelay config (JSON5)")
+    .option(
+      "--profile <name>",
+      "Profile name for isolated credentials/state (a-z0-9_-)",
+    );
+
+  program.hook("preAction", (cmd) => {
+    if (runtimeContextInitialized) return;
+    const opts =
+      typeof (cmd as Command & { optsWithGlobals?: () => unknown })
+        .optsWithGlobals === "function"
+        ? (
+            cmd as Command & {
+              optsWithGlobals: () => unknown;
+            }
+          ).optsWithGlobals()
+        : cmd.opts();
+    try {
+      setRuntimeConfigContext({
+        profile: (opts as { profile?: string }).profile,
+        configPath: (opts as { config?: string }).config,
+      });
+      const resolved = resolveConfigPath();
+      const { profileLabel } = resolveProfilePaths();
+      const existsNote = resolved.exists ? "" : " (missing)";
+      const sourceLabel = resolved.source;
+      const meta = loadConfigWithMeta({
+        require: resolved.source !== "legacy",
+      });
+      for (const warning of meta.warnings) {
+        console.log(info(warning));
+      }
+      console.log(
+        info(
+          `Profile ${profileLabel} | config ${resolved.path}${existsNote} [${sourceLabel}]`,
+        ),
+      );
+      runtimeContextInitialized = true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      defaultRuntime.error(danger(`Invalid profile/config: ${message}`));
+      defaultRuntime.exit(1);
+    }
+  });
 
   program
     .command("login")
@@ -572,7 +625,10 @@ Examples:
     .description(
       "Run inbound webhook. ingress=tailscale updates Twilio; ingress=none stays local-only.",
     )
-    .option("-p, --port <port>", "Port to listen on", "42873")
+    .option(
+      "-p, --port <port>",
+      "Port to listen on (default is profile-aware, base 42873)",
+    )
     .option("-r, --reply <text>", "Optional auto-reply text")
     .option("--path <path>", "Webhook path", "/webhook/whatsapp")
     .option(

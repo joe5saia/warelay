@@ -6,6 +6,7 @@ import {
   resolveSessionIntro,
   type WarelayConfig,
 } from "../config/config.js";
+import { resolveProfilePaths } from "../config/runtime.js";
 import {
   DEFAULT_IDLE_MINUTES,
   DEFAULT_RESET_TRIGGER,
@@ -32,11 +33,15 @@ import type { GetReplyOptions, ReplyPayload } from "./types.js";
 export type { GetReplyOptions, ReplyPayload } from "./types.js";
 
 export async function getReplyFromConfig(
-  ctx: MsgContext,
+  ctxInput: MsgContext,
   opts?: GetReplyOptions,
   configOverride?: WarelayConfig,
   commandRunner: typeof runCommandWithTimeout = runCommandWithTimeout,
 ): Promise<ReplyPayload | undefined> {
+  const ctx: MsgContext = {
+    assistantProfile: resolveProfilePaths().profileLabel,
+    ...ctxInput,
+  };
   // Choose reply from config: static text or external command stdout.
   const cfg = configOverride ?? loadConfig();
   const reply = cfg.inbound?.reply;
@@ -308,6 +313,7 @@ export async function autoReplyIfConfigured(
     From: message.from ?? undefined,
     To: message.to ?? undefined,
     MessageSid: message.sid,
+    provider: "twilio",
   };
   const cfg = configOverride ?? loadConfig();
   // Attach media hints for transcription/templates if present on Twilio payloads.

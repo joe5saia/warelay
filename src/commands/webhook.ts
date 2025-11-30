@@ -1,11 +1,14 @@
 import type { CliDeps } from "../cli/deps.js";
+import { resolveProfilePort } from "../config/runtime.js";
 import { retryAsync } from "../infra/retry.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { upCommand } from "./up.js";
 
+const DEFAULT_WEBHOOK_PORT = 42873;
+
 export async function webhookCommand(
   opts: {
-    port: string;
+    port?: string;
     path: string;
     reply?: string;
     verbose?: boolean;
@@ -16,7 +19,8 @@ export async function webhookCommand(
   deps: CliDeps,
   runtime: RuntimeEnv,
 ) {
-  const port = Number.parseInt(opts.port, 10);
+  const portStr = opts.port ?? String(resolveProfilePort(DEFAULT_WEBHOOK_PORT));
+  const port = Number.parseInt(portStr, 10);
   if (Number.isNaN(port) || port <= 0 || port >= 65536) {
     throw new Error("Port must be between 1 and 65535");
   }
@@ -27,7 +31,7 @@ export async function webhookCommand(
   if (ingress === "tailscale") {
     const result = await upCommand(
       {
-        port: opts.port,
+        port: portStr,
         path: opts.path,
         verbose: opts.verbose,
         yes: opts.yes,

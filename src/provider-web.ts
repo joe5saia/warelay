@@ -23,10 +23,10 @@ export {
   createWaSocket,
   formatError,
   getStatusCode,
+  getWebAuthDir,
   logoutWeb,
   logWebSelfId,
   pickProvider,
-  WA_WEB_AUTH_DIR,
   waitForWaConnection,
   webAuthExists,
 } from "./web/session.js";

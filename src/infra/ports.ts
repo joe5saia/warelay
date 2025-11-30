@@ -1,4 +1,5 @@
 import net from "node:net";
+import { getProfileTag } from "../config/runtime.js";
 import { danger, info, isVerbose, logVerbose, warn } from "../globals.js";
 import { logDebug } from "../logger.js";
 import { runExec } from "../process/exec.js";
@@ -67,6 +68,7 @@ export async function handlePortError(
   runtime: RuntimeEnv = defaultRuntime,
 ): Promise<never> {
   // Uniform messaging for EADDRINUSE with optional owner details.
+  const profileTag = getProfileTag();
   if (
     err instanceof PortInUseError ||
     (isErrno(err) && err.code === "EADDRINUSE")
@@ -75,7 +77,11 @@ export async function handlePortError(
       err instanceof PortInUseError
         ? err.details
         : await describePortOwner(port);
-    runtime.error(danger(`${context} failed: port ${port} is already in use.`));
+    runtime.error(
+      danger(
+        `${context} failed: port ${port} is already in use.${profileTag ? ` ${profileTag}` : ""}`,
+      ),
+    );
     if (details) {
       runtime.error(info("Port listener details:"));
       runtime.error(details);
@@ -89,7 +95,7 @@ export async function handlePortError(
     }
     runtime.error(
       info(
-        "Resolve by stopping the process using the port or passing --port <free-port>.",
+        `Resolve by stopping the process using the port or passing --port <free-port>.${profileTag ? ` ${profileTag}` : ""}`,
       ),
     );
     runtime.exit(1);

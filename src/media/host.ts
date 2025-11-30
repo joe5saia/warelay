@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { resolveProfilePort } from "../config/runtime.js";
 import { ensurePortAvailable, PortInUseError } from "../infra/ports.js";
 import { getTailnetHostname } from "../infra/tailscale.js";
 import { logInfo } from "../logger.js";
@@ -25,7 +26,7 @@ export async function ensureMediaHosted(
     runtime?: RuntimeEnv;
   } = {},
 ): Promise<HostedMedia> {
-  const port = opts.port ?? DEFAULT_PORT;
+  const port = opts.port ?? resolveProfilePort(DEFAULT_PORT);
   const runtime = opts.runtime ?? defaultRuntime;
 
   const saved = await saveMediaSource(source);

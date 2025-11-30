@@ -12,6 +12,8 @@
 
 Send, receive, auto-reply, and inspect messages over **Twilio WhatsApp**, your personal **WhatsApp Web** session, or **Discord**. Ships with a one-command webhook setup (Tailscale Funnel + Twilio callback) and a configurable auto-reply engine (plain text or command/Claude driven).
 
+> Tip: all commands accept global `--profile <name>` and `--config <path>` flags to isolate state/config when running multiple agents on the same machine.
+
 ### Clawd (personal assistant)
 I'm using warelay to run my personal, pro-active assistant, **Clawd**. Follow me on Twitter: [@steipete](https://twitter.com/steipete). This project is brand-new and there's a lot to discover. See the exact Claude setup in [`docs/clawd.md`](https://github.com/steipete/warelay/blob/main/docs/clawd.md).
 
@@ -93,11 +95,18 @@ Install from npm (global): `npm install -g warelay` (Node 22+). Then choose **on
 
 ## Providers
 - **Twilio (default):** needs `.env` creds + WhatsApp-enabled number; supports delivery tracking, polling, webhooks, and auto-reply typing indicators.
-- **Web (`--provider web`):** uses your personal WhatsApp via Baileys; supports send/receive + auto-reply, but no delivery-status wait; cache lives in `~/.warelay/credentials/` (rerun `login` if logged out). If the Web socket closes, the relay exits instead of pivoting to Twilio.
+- **Web (`--provider web`):** uses your personal WhatsApp via Baileys; supports send/receive + auto-reply, but no delivery-status wait; cache lives in `~/.warelay/credentials/` (or `~/.warelay/credentials/<profile>/` when using `--profile`)—rerun `login` if logged out. If the Web socket closes, the relay exits instead of pivoting to Twilio.
 - **Discord (`--provider discord`):** uses `DISCORD_BOT_TOKEN`; replies to DMs or @mentions in channels/threads (mention-only by default). Set allowlists in `discord.allowedUsers|allowedChannels|allowedGuilds` to scope who can trigger the bot.
 - **Auto-select (`relay` only):** `--provider auto` picks Web when a cache exists at start, otherwise Twilio polling. It will not swap from Web to Twilio mid-run if the Web session drops.
 
 Best practice: use a dedicated WhatsApp account (separate SIM/eSIM or business account) for automation instead of your primary personal account to avoid unexpected logouts or rate limits.
+
+### Multi-agent / profile setup
+- Each profile gets its own config + state. Default config path is `~/.warelay/warelay.json`; with `--profile alice` it becomes `~/.warelay/warelay.alice.json` (or pass `--config /path/to/config.json5`).
+- State/credentials/media/logs are isolated per profile: `~/.warelay/credentials/<profile>/`, `~/.warelay/state/<profile>/sessions.json`, `~/.warelay/media/<profile>/`, `/tmp/warelay/<profile>/warelay.log`.
+- Default ports become profile-aware (e.g., `warelay webhook` bases at 42873 and offsets per profile). Override with `--port` if you need a specific value.
+- Example setup for a second agent: copy your config to `~/.warelay/warelay.partner.json`, tweak `assistantLabel`/allowlists, then run `warelay --profile partner login --provider web` and `warelay --profile partner relay --provider web --verbose`.
+- Discord tokens are enforced to be unique per profile; reuse will throw.
 
 ### Discord provider setup (quick)
 1. In Discord Developer Portal → Bot: enable **MESSAGE CONTENT INTENT** (and invite the bot with Send/View permissions).
@@ -142,7 +151,7 @@ warelay supports running on the same phone number you message from—you chat wi
 (*Provide either auth token OR api key/secret.)
 
 ### Auto-reply config (`~/.warelay/warelay.json`, JSON5)
-- Controls who is allowed to trigger replies (`allowFrom`), reply mode (`text` or `command`), templates, and session behavior.
+- Controls who is allowed to trigger replies (`allowFrom`), reply mode (`text` or `command`), templates, and session behavior. For profiles, use `~/.warelay/warelay.<profile>.json` or pass `--config`.
 - Example (Claude command):
 
 ```json5
@@ -169,8 +178,8 @@ warelay supports running on the same phone number you message from—you chat wi
 - When multiple active sessions exist, `warelay heartbeat` requires `--to <E.164>` or `--all`; if `allowFrom` is just `"*"`, you must choose a target with one of those flags.
 
 ### Logging (optional)
-- File logs are written to `/tmp/warelay/warelay.log` by default. Levels: `silent | fatal | error | warn | info | debug | trace` (CLI `--verbose` forces `debug`). Web-provider inbound/outbound entries include message bodies and auto-reply text for easier auditing.
-- Override in `~/.warelay/warelay.json`:
+- File logs are written to `/tmp/warelay/<profile>/warelay.log` by default (profile defaults to `default`). Levels: `silent | fatal | error | warn | info | debug | trace` (CLI `--verbose` forces `debug`). Web-provider inbound/outbound entries include message bodies and auto-reply text for easier auditing.
+- Override in `~/.warelay/warelay.json` (or the profile-specific file):
 
 ```json5
 {

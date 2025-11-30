@@ -1,3 +1,7 @@
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+
 import {
   Client,
   type ClientOptions,
@@ -6,6 +10,7 @@ import {
 } from "discord.js";
 
 import { loadConfig, type WarelayConfig } from "../config/config.js";
+import { resolveProfilePaths, WARELAY_HOME_DIR } from "../config/runtime.js";
 import { logVerbose } from "../globals.js";
 import { getChildLogger } from "../logging.js";
 import type { DiscordRuntimeConfig } from "./types.js";
@@ -19,6 +24,36 @@ export const DEFAULT_CLIENT_OPTIONS: ClientOptions = {
   ],
   partials: [Partials.Channel],
 };
+
+function ensureDiscordTokenNotReused(botToken: string) {
+  const hash = crypto.createHash("sha256").update(botToken).digest("hex");
+  const registryPath = path.join(
+    WARELAY_HOME_DIR,
+    "state",
+    "discord-tokens.json",
+  );
+  fs.mkdirSync(path.dirname(registryPath), { recursive: true });
+  let registry: Record<string, string> = {};
+  try {
+    const raw = fs.readFileSync(registryPath, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      registry = parsed as Record<string, string>;
+    }
+  } catch {
+    registry = {};
+  }
+  const { profileLabel } = resolveProfilePaths();
+  for (const [profile, storedHash] of Object.entries(registry)) {
+    if (profile !== profileLabel && storedHash === hash) {
+      throw new Error(
+        `Discord bot token already recorded for profile "${profile}". Use unique tokens per profile.`,
+      );
+    }
+  }
+  registry[profileLabel] = hash;
+  fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2), "utf-8");
+}
 
 export function createDiscordClient(
   options: Partial<ClientOptions> = {},
@@ -47,6 +82,9 @@ export function resolveDiscordConfig(
     allowedGuilds: discordCfg.allowedGuilds ?? [],
     mentionOnly: discordCfg.mentionOnly ?? true,
     replyInThread: discordCfg.replyInThread ?? true,
+    assistantLabel: discordCfg.assistantLabel,
+    assistantPersona: discordCfg.persona,
+    showAssistantLabel: discordCfg.showAssistantLabel ?? false,
   };
 }
 
@@ -82,6 +120,7 @@ export async function createAndLoginDiscordClient(
   const resolvedConfig = config ?? resolveDiscordConfig();
   const client = createDiscordClient(options);
   const logger = getChildLogger({ module: "discord-client" });
+  ensureDiscordTokenNotReused(resolvedConfig.botToken);
   await client.login(resolvedConfig.botToken);
   await waitForReady(client);
   const botUserId = client.user?.id;

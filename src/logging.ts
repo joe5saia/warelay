@@ -1,13 +1,10 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 import pino, { type Bindings, type LevelWithSilent, type Logger } from "pino";
 import { loadConfig, type WarelayConfig } from "./config/config.js";
+import { resolveProfilePaths } from "./config/runtime.js";
 import { isVerbose } from "./globals.js";
-
-const DEFAULT_LOG_DIR = path.join(os.tmpdir(), "warelay");
-export const DEFAULT_LOG_FILE = path.join(DEFAULT_LOG_DIR, "warelay.log");
 
 const ALLOWED_LEVELS: readonly LevelWithSilent[] = [
   "silent",
@@ -46,7 +43,7 @@ function resolveSettings(): ResolvedSettings {
   const cfg: WarelayConfig["logging"] | undefined =
     overrideSettings ?? loadConfig().logging;
   const level = normalizeLevel(cfg?.level);
-  const file = cfg?.file ?? DEFAULT_LOG_FILE;
+  const file = cfg?.file ?? resolveProfilePaths().logFile;
   return { level, file };
 }
 
@@ -57,6 +54,7 @@ function settingsChanged(a: ResolvedSettings | null, b: ResolvedSettings) {
 
 function buildLogger(settings: ResolvedSettings): Logger {
   fs.mkdirSync(path.dirname(settings.file), { recursive: true });
+  const { profileLabel } = resolveProfilePaths();
   const destination = pino.destination({
     dest: settings.file,
     mkdir: true,
@@ -65,7 +63,7 @@ function buildLogger(settings: ResolvedSettings): Logger {
   return pino(
     {
       level: settings.level,
-      base: undefined,
+      base: { profile: profileLabel },
       timestamp: pino.stdTimeFunctions.isoTime,
     },
     destination,

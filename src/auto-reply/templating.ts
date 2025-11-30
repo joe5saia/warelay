@@ -7,6 +7,19 @@ export type MsgContext = {
   MediaUrl?: string;
   MediaType?: string;
   Transcript?: string;
+  provider?: string;
+  assistantProfile?: string;
+  assistantLabel?: string;
+  assistantPersona?: string;
+  botUserId?: string;
+  senderId?: string;
+  senderName?: string;
+  guildId?: string;
+  channelId?: string;
+  threadId?: string;
+  messageId?: string;
+  isMentioned?: boolean;
+  rawMentions?: string[];
 };
 
 export type TemplateContext = MsgContext & {

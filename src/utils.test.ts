@@ -2,9 +2,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { resolveProfilePaths } from "./config/runtime.js";
 import {
   assertProvider,
-  CONFIG_DIR,
   ensureDir,
   jidToE164,
   normalizeE164,
@@ -78,7 +78,8 @@ describe("normalizeE164 & toWhatsappJid", () => {
 
 describe("jidToE164", () => {
   it("maps @lid using reverse mapping file", () => {
-    const mappingPath = `${CONFIG_DIR}/credentials/lid-mapping-123_reverse.json`;
+    const { credentialsDir } = resolveProfilePaths();
+    const mappingPath = `${credentialsDir}/lid-mapping-123_reverse.json`;
     const original = fs.readFileSync;
     const spy = vi
       .spyOn(fs, "readFileSync")

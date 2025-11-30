@@ -10,6 +10,6 @@ describe("provider-web barrel", () => {
     expect(mod.sendMessageWeb).toBeTypeOf("function");
     expect(mod.monitorWebInbox).toBeTypeOf("function");
     expect(mod.pickProvider).toBeTypeOf("function");
-    expect(mod.WA_WEB_AUTH_DIR).toBeTruthy();
+    expect(mod.getWebAuthDir).toBeTypeOf("function");
   });
 });

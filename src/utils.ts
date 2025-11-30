@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import os from "node:os";
+import { resolveProfilePaths } from "./config/runtime.js";
 import { isVerbose, logVerbose } from "./globals.js";
 
 export async function ensureDir(dir: string) {
@@ -49,7 +49,8 @@ export function jidToE164(jid: string): string | null {
   if (lidMatch) {
     const lid = lidMatch[1];
     try {
-      const mappingPath = `${CONFIG_DIR}/credentials/lid-mapping-${lid}_reverse.json`;
+      const { credentialsDir } = resolveProfilePaths();
+      const mappingPath = `${credentialsDir}/lid-mapping-${lid}_reverse.json`;
       const data = fs.readFileSync(mappingPath, "utf8");
       const phone = JSON.parse(data);
       if (phone) return `+${phone}`;
@@ -69,5 +70,3 @@ export function jidToE164(jid: string): string | null {
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
-export const CONFIG_DIR = `${os.homedir()}/.warelay`;

@@ -4,6 +4,7 @@ import { getReplyFromConfig } from "../auto-reply/reply.js";
 import type { MsgContext } from "../auto-reply/templating.js";
 import type { ReplyPayload } from "../auto-reply/types.js";
 import { loadConfig } from "../config/config.js";
+import { resolveProfilePaths } from "../config/runtime.js";
 import { danger, info, isVerbose, logVerbose, success } from "../globals.js";
 import { getChildLogger } from "../logging.js";
 import { sendDiscordReply } from "./send.js";
@@ -49,6 +50,11 @@ export function normalizeMessage(
   }
 
   const userId = message.author.id;
+  const senderName =
+    (message.member as { displayName?: string } | null)?.displayName ??
+    (message.author as { globalName?: string }).globalName ??
+    message.author.username ??
+    message.author.tag;
   const channelId = message.channelId;
   const guildId = message.guildId ?? null;
 
@@ -85,9 +91,15 @@ export function normalizeMessage(
     content = stripBotMention(content, botUserId);
   }
 
+  const mentionUserIds =
+    "mentions" in message && message.mentions?.users
+      ? Array.from(message.mentions.users.keys())
+      : [];
+
   return {
     userId,
     userTag: message.author.tag,
+    senderName,
     channelId,
     guildId,
     messageId: message.id,
@@ -97,16 +109,35 @@ export function normalizeMessage(
     isThread,
     threadId: isThread ? channelId : null,
     timestamp: message.createdAt,
+    mentionUserIds,
     rawMessage: message,
   };
 }
 
-export function toMsgContext(msg: NormalizedDiscordMessage): MsgContext {
+export function toMsgContext(
+  msg: NormalizedDiscordMessage,
+  botUserId: string,
+  config: DiscordRuntimeConfig,
+): MsgContext {
+  const { profileLabel } = resolveProfilePaths();
   return {
     Body: msg.content,
     From: msg.userId,
     To: msg.channelId,
     MessageSid: msg.messageId,
+    provider: "discord",
+    assistantProfile: profileLabel,
+    assistantLabel: config.assistantLabel,
+    assistantPersona: config.assistantPersona,
+    botUserId,
+    senderId: msg.userId,
+    senderName: msg.senderName,
+    guildId: msg.guildId ?? undefined,
+    channelId: msg.channelId,
+    threadId: msg.threadId ?? undefined,
+    messageId: msg.messageId,
+    isMentioned: msg.isMention,
+    rawMentions: msg.mentionUserIds,
   };
 }
 
@@ -129,7 +160,7 @@ export async function handleDiscordMessage(
   const normalized = normalizeMessage(message, botUserId, config);
   if (!normalized) return;
 
-  const ctx = toMsgContext(normalized);
+  const ctx = toMsgContext(normalized, botUserId, config);
   const cfg = loadConfig();
 
   logger.info(
@@ -168,21 +199,33 @@ export async function handleDiscordMessage(
       { onReplyStart: startTyping },
       cfg,
     );
+    const labelPrefix =
+      config.showAssistantLabel && config.assistantLabel
+        ? `[${config.assistantLabel}] `
+        : "";
+    const replyWithLabel =
+      labelPrefix && reply?.text
+        ? { ...reply, text: `${labelPrefix}${reply.text}` }
+        : reply;
     if (
-      !reply ||
-      (!reply.text && !reply.mediaUrl && (reply.mediaUrls?.length ?? 0) === 0)
+      !replyWithLabel ||
+      (!replyWithLabel.text &&
+        !replyWithLabel.mediaUrl &&
+        (replyWithLabel.mediaUrls?.length ?? 0) === 0)
     ) {
       if (isVerbose()) logVerbose("Discord: no reply configured.");
       return;
     }
 
-    await sendReply(message, reply, config);
+    await sendReply(message, replyWithLabel, config);
     logger.info(
       {
         userId: normalized.userId,
         channelId: normalized.channelId,
-        replyChars: reply.text?.length ?? 0,
-        hasMedia: Boolean(reply.mediaUrl || reply.mediaUrls?.length),
+        replyChars: replyWithLabel.text?.length ?? 0,
+        hasMedia: Boolean(
+          replyWithLabel.mediaUrl || replyWithLabel.mediaUrls?.length,
+        ),
       },
       "Discord reply sent",
     );

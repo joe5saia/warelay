@@ -11,11 +11,15 @@ export type DiscordRuntimeConfig = {
   allowedGuilds: string[];
   mentionOnly: boolean;
   replyInThread: boolean;
+  assistantLabel?: string;
+  assistantPersona?: string;
+  showAssistantLabel?: boolean;
 };
 
 export type NormalizedDiscordMessage = {
   userId: string;
   userTag: string;
+  senderName: string;
   channelId: string;
   guildId: string | null;
   messageId: string;
@@ -25,6 +29,7 @@ export type NormalizedDiscordMessage = {
   isThread: boolean;
   threadId: string | null;
   timestamp: Date;
+  mentionUserIds: string[];
   rawMessage: Message;
 };
 
