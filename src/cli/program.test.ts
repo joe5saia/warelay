@@ -10,6 +10,20 @@ const monitorWebProvider = vi.fn();
 const pickProvider = vi.fn();
 const monitorTwilio = vi.fn();
 const monitorDiscordProvider = vi.fn();
+const createAndLoginDiscordClient = vi.fn().mockResolvedValue({
+  client: { destroy: vi.fn() },
+  botUserId: "bot-123",
+  botTag: "bot#0001",
+});
+const resolveDiscordConfig = vi.fn().mockReturnValue({
+  botToken: "token",
+  allowedUsers: [],
+  allowedChannels: [],
+  allowedGuilds: [],
+  mentionOnly: true,
+  replyInThread: true,
+});
+const runDiscordHeartbeatOnce = vi.fn();
 const logTwilioFrom = vi.fn();
 const logWebSelfId = vi.fn();
 const waitForever = vi.fn();
@@ -33,7 +47,12 @@ vi.mock("../provider-web.js", () => ({
   monitorWebProvider,
   pickProvider,
 }));
-vi.mock("../discord/index.js", () => ({ monitorDiscordProvider }));
+vi.mock("../discord/index.js", () => ({
+  monitorDiscordProvider,
+  createAndLoginDiscordClient,
+  resolveDiscordConfig,
+  runDiscordHeartbeatOnce,
+}));
 vi.mock("./deps.js", () => ({
   createDefaultDeps: () => ({ waitForever }),
   logTwilioFrom,

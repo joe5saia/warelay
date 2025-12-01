@@ -9,7 +9,12 @@ import {
   resolveProfilePaths,
   setRuntimeConfigContext,
 } from "../config/runtime.js";
-import { monitorDiscordProvider } from "../discord/index.js";
+import {
+  createAndLoginDiscordClient,
+  monitorDiscordProvider,
+  resolveDiscordConfig,
+  runDiscordHeartbeatOnce,
+} from "../discord/index.js";
 import { ensureDiscordEnv, ensureTwilioEnv } from "../env.js";
 import { danger, info, setVerbose, setYes } from "../globals.js";
 import { getResolvedLoggerSettings } from "../logging.js";
@@ -239,10 +244,13 @@ Examples:
   program
     .command("heartbeat")
     .description(
-      "Trigger a heartbeat or manual send once (web or twilio, no tmux)",
+      "Trigger a heartbeat or manual send once (web, twilio, or discord DM, no tmux)",
     )
-    .option("--provider <provider>", "auto | web | twilio", "auto")
-    .option("--to <number>", "Override target E.164; defaults to allowFrom[0]")
+    .option("--provider <provider>", "auto | web | twilio | discord", "auto")
+    .option(
+      "--to <number>",
+      "Override target (E.164 for web/twilio, userId for discord). Defaults to allowFrom[0] or discord.heartbeatUserId.",
+    )
     .option(
       "--session-id <id>",
       "Force a session id for this heartbeat (resumes a specific Claude session)",
@@ -273,6 +281,56 @@ Examples:
     .action(async (opts) => {
       setVerbose(Boolean(opts.verbose));
       const cfg = loadConfig();
+      const providerPref = String(opts.provider ?? "auto");
+      if (!["auto", "web", "twilio", "discord"].includes(providerPref)) {
+        defaultRuntime.error(
+          "--provider must be auto, web, twilio, or discord",
+        );
+        defaultRuntime.exit(1);
+      }
+
+      const overrideBody =
+        (opts.message as string | undefined) ||
+        (opts.body as string | undefined) ||
+        undefined;
+      const dryRun = Boolean(opts.dryRun);
+
+      if (providerPref === "discord") {
+        ensureDiscordEnv();
+        const targetUserId =
+          (opts.to as string | undefined) ?? cfg.discord?.heartbeatUserId;
+        if (!targetUserId) {
+          defaultRuntime.error(
+            danger(
+              "Discord heartbeat requires a target user id. Set discord.heartbeatUserId in your config or pass --to <userId>.",
+            ),
+          );
+          defaultRuntime.exit(1);
+        }
+        try {
+          const resolvedDiscordCfg = resolveDiscordConfig(cfg);
+          const { client, botUserId } =
+            await createAndLoginDiscordClient(resolvedDiscordCfg);
+          await runDiscordHeartbeatOnce({
+            client,
+            botUserId,
+            userId: targetUserId,
+            config: resolvedDiscordCfg,
+            cfg,
+            verbose: Boolean(opts.verbose),
+            overrideBody,
+            dryRun,
+          });
+          client.destroy();
+        } catch (err) {
+          defaultRuntime.error(
+            danger(`Discord heartbeat failed: ${String(err)}`),
+          );
+          defaultRuntime.exit(1);
+        }
+        return;
+      }
+
       const allowAll = Boolean(opts.all);
       const resolution = resolveHeartbeatRecipients(cfg, {
         to: opts.to,
@@ -300,19 +358,6 @@ Examples:
         );
         defaultRuntime.exit(1);
       }
-      const providerPref = String(opts.provider ?? "auto");
-      if (!["auto", "web", "twilio", "discord"].includes(providerPref)) {
-        defaultRuntime.error(
-          "--provider must be auto, web, twilio, or discord",
-        );
-        defaultRuntime.exit(1);
-      }
-
-      const overrideBody =
-        (opts.message as string | undefined) ||
-        (opts.body as string | undefined) ||
-        undefined;
-      const dryRun = Boolean(opts.dryRun);
 
       const provider =
         providerPref === "twilio"
@@ -363,6 +408,10 @@ Examples:
       "Heartbeat interval for web relay health logs (seconds)",
     )
     .option(
+      "--discord-heartbeat <seconds>",
+      "Heartbeat interval for discord relay DMs (seconds)",
+    )
+    .option(
       "--web-retries <count>",
       "Max consecutive web reconnect attempts before exit (0 = unlimited)",
     )
@@ -405,6 +454,10 @@ Examples:
         opts.webHeartbeat !== undefined
           ? Number.parseInt(String(opts.webHeartbeat), 10)
           : undefined;
+      const discordHeartbeat =
+        opts.discordHeartbeat !== undefined
+          ? Number.parseInt(String(opts.discordHeartbeat), 10)
+          : undefined;
       const webRetries =
         opts.webRetries !== undefined
           ? Number.parseInt(String(opts.webRetries), 10)
@@ -431,6 +484,13 @@ Examples:
         (Number.isNaN(webHeartbeat) || webHeartbeat <= 0)
       ) {
         defaultRuntime.error("--web-heartbeat must be a positive integer");
+        defaultRuntime.exit(1);
+      }
+      if (
+        discordHeartbeat !== undefined &&
+        (Number.isNaN(discordHeartbeat) || discordHeartbeat <= 0)
+      ) {
+        defaultRuntime.error("--discord-heartbeat must be a positive integer");
         defaultRuntime.exit(1);
       }
       if (
@@ -478,7 +538,11 @@ Examples:
         ensureDiscordEnv();
         try {
           await monitorDiscordProvider(
-            { verbose: Boolean(opts.verbose) },
+            {
+              verbose: Boolean(opts.verbose),
+              heartbeatSeconds: discordHeartbeat,
+              heartbeatNow,
+            },
             defaultRuntime,
           );
           return;

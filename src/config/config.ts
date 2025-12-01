@@ -57,6 +57,8 @@ export type DiscordConfig = {
   assistantLabel?: string;
   persona?: string;
   showAssistantLabel?: boolean;
+  heartbeatSeconds?: number;
+  heartbeatUserId?: string;
 };
 
 export type WarelayConfig = {
@@ -192,6 +194,8 @@ const WarelaySchema = z.object({
       assistantLabel: z.string().optional(),
       persona: z.string().optional(),
       showAssistantLabel: z.boolean().optional(),
+      heartbeatSeconds: z.number().int().positive().optional(),
+      heartbeatUserId: z.string().min(1).optional(),
     })
     .optional(),
 });

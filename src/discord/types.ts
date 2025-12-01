@@ -14,6 +14,8 @@ export type DiscordRuntimeConfig = {
   assistantLabel?: string;
   assistantPersona?: string;
   showAssistantLabel?: boolean;
+  heartbeatSeconds?: number;
+  heartbeatUserId?: string;
 };
 
 export type NormalizedDiscordMessage = {
@@ -37,6 +39,8 @@ export type DiscordMonitorOptions = {
   verbose: boolean;
   onMessage?: (msg: NormalizedDiscordMessage) => Promise<void>;
   abortSignal?: AbortSignal;
+  heartbeatSeconds?: number;
+  heartbeatNow?: boolean;
 };
 
 export type DiscordSendResult = {

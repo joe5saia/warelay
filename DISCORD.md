@@ -27,6 +27,12 @@ We're adding **Discord** as a third provider. When complete, users will be able 
 - Run `warelay relay --provider discord` to listen for Discord messages
 - The bot will respond to DMs and @mentions using Claude (or other configured commands)
 - Run `warelay send --provider discord --to <channel-id> --message "Hello"` to send messages
+- Optionally run heartbeat DMs: set `discord.heartbeatUserId` per profile and start the relay with `--discord-heartbeat <seconds>` (e.g., 60) to send the `HEARTBEAT ultrathink` probe and forward non-empty replies as DMs.
+
+### Finding your Discord user ID
+1) In Discord, open **User Settings → Advanced** and toggle on **Developer Mode**.  
+2) Right-click (or long-press on mobile) your own profile or any message you sent.  
+3) Click **Copy User ID**. This is the value to use for `discord.heartbeatUserId`.
 
 ### Architecture Diagram
 

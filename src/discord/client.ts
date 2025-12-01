@@ -100,6 +100,7 @@ export function resolveDiscordConfig(
     discordCfg.botToken ??
     process.env.DISCORD_BOT_TOKEN ??
     storedToken;
+  const heartbeatUserId = (discordCfg.heartbeatUserId ?? "").trim();
   if (!botToken) {
     throw new Error(
       "DISCORD_BOT_TOKEN missing. Set it in your environment or warelay config before using provider=discord.",
@@ -117,6 +118,8 @@ export function resolveDiscordConfig(
     assistantLabel: discordCfg.assistantLabel,
     assistantPersona: discordCfg.persona,
     showAssistantLabel: discordCfg.showAssistantLabel ?? false,
+    heartbeatSeconds: discordCfg.heartbeatSeconds,
+    heartbeatUserId: heartbeatUserId || undefined,
   };
 }
 

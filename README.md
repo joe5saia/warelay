@@ -54,9 +54,9 @@ Install from npm (global): `npm install -g warelay` (Node 22+). Then choose **on
 | Command | What it does | Core flags |
 | --- | --- | --- |
 | `warelay send` | Send a message (Twilio, Web, or Discord) | `--to <e164|channel>` `--message <text>` `--wait <sec>` `--poll <sec>` `--provider twilio\|web\|discord` `--json` `--dry-run` `--verbose` |
-| `warelay relay` | Auto-reply loop (poll Twilio, Web, or Discord) | `--provider <auto\|twilio\|web\|discord>` `--interval <sec>` `--lookback <min>` `--verbose` |
+| `warelay relay` | Auto-reply loop (poll Twilio, Web, or Discord) | `--provider <auto\|twilio\|web\|discord>` `--interval <sec>` `--lookback <min>` `--discord-heartbeat <sec>` `--heartbeat-now` `--verbose` |
 | `warelay status` | Show recent sent/received messages | `--limit <n>` `--lookback <min>` `--json` `--verbose` |
-| `warelay heartbeat` | Trigger one heartbeat poll (web) | `--provider <auto\|web>` `--to <e164?>` `--session-id <uuid?>` `--all` `--verbose` |
+| `warelay heartbeat` | Trigger one heartbeat poll (web/twilio/discord) | `--provider <auto\|web\|twilio\|discord>` `--to <e164|userId?>` `--session-id <uuid?>` `--all` `--verbose` |
 | `warelay relay:heartbeat` | Run relay with an immediate heartbeat (no tmux) | `--provider <auto\|web>` `--verbose` |
 | `warelay relay:heartbeat:tmux` | Start relay in tmux and fire a heartbeat on start (web) | _no flags_ |
 | `warelay webhook` | Run inbound webhook (`ingress=tailscale` updates Twilio; `none` is local-only) | `--ingress tailscale\|none` `--port <port>` `--path <path>` `--reply <text>` `--verbose` `--yes` `--dry-run` |
@@ -134,6 +134,19 @@ Use separate bot tokens per profile to avoid cross-profile reuse errors.
 5. Add the new bot token to your env for that shell/session: `export DISCORD_BOT_TOKEN="<token>"` (or use a profile-specific env loader). The token is cached to `~/.warelay/credentials/<profile>/discord-token` for reuse; update that file when rotating tokens.
 6. Run with the profile: `warelay relay --provider discord --verbose --profile joe`.
 7. If you previously used the same token in another profile, clear the old registry entry at `~/.warelay/state/discord-tokens.json` **only if you intend to stop using that profile with this token**; otherwise, keep tokens unique per profile to avoid collisions.
+
+#### Discord heartbeats (DM pings)
+- Configure a per-profile recipient and cadence in `~/.warelay/warelay.<profile>.json`:
+  ```json5
+  {
+    discord: {
+      heartbeatUserId: "123456789012345678", // who to DM for this profile
+      heartbeatSeconds: 60 // optional; defaults to 60s when heartbeatUserId is set
+    }
+  }
+  ```
+- Run the relay with heartbeats: `warelay relay --provider discord --discord-heartbeat 60 --heartbeat-now --verbose`. The probe uses the same `HEARTBEAT ultrathink` prompt as web; when your command replies with `HEARTBEAT_OK` the DM is suppressed.
+- One-off manual ping: `warelay heartbeat --provider discord --to <userId>` (or rely on `discord.heartbeatUserId`). Override the body with `--message "Ping"` if you want to skip the heartbeat prompt.
 
 ### Same-phone mode (self-messaging)
 warelay supports running on the same phone number you message from—you chat with yourself and an AI assistant replies in the same bubble. This requires:
